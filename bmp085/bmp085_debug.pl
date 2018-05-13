@@ -22,7 +22,10 @@ use constant BMP085_OVERSAMPLING_SETTING => 3;
 my $__debug = 1;
 
 {
+    system "gpio -g mode 4 out";
+    system "gpio -g write 4 1";
     my ( $t, $p ) = bmp085_getvalue();
+    system "gpio -g write 4 0";
     printf( "BMP085\ntemperature = %.1f deg-C, pressure = %.2f hPa\n",
             $t / 10, $p / 100 );
     exit;
@@ -30,7 +33,7 @@ my $__debug = 1;
 
 # 温度・気圧を配列で返すsub
 sub bmp085_getvalue {
-    my ( $t, $p );
+    my ( $t, $p ) = ( 0, 0 );
 
     eval {
         my $fh = IO::File->new( "/dev/i2c-1", O_RDWR );
@@ -88,8 +91,15 @@ sub bmp085_getvalue {
             printf( "write 0xF4, 0x%02X, and wait 25.5msec\nup ",
                     0x34 + ( BMP085_OVERSAMPLING_SETTING << 6 ) );
         }
-        my $up_bytes = i2c_read_bytes( $fh, 0xf6, 3 );
-        my @up_array = unpack( "C*", $up_bytes );
+        #
+        # Read raw temperature and pressure measurement output
+        #
+        my $data_bytes = i2c_read_bytes( $fh, 0xf6, 3 );
+        if ( length($data_bytes) != 3 ) {
+            close($fh);
+            return ( 0, 0 );
+        }
+        my @up_array = unpack( "C*", $data_bytes );
         my $up = ( $up_array[0] << 16 | $up_array[1] << 8 | $up_array[2] )
           >> ( 8 - BMP085_OVERSAMPLING_SETTING );
         if ( $__debug == 1 ) { printf( "(long %ld)\n", $up ); }
@@ -105,7 +115,8 @@ sub bmp085_getvalue {
 
     };
     if ($@) {
-        die $@;
+        if ( $__debug == 1 ) { print "error : $@"; }
+        return ( 0, 0 );
     }
 
     return ( $t, $p );
@@ -163,23 +174,31 @@ sub bmp085_calc_pressure {
 }
 
 sub i2c_read_int {
-    my ( $i2c, $bmp085_reg ) = @_;
+    my ( $i2c, $i2c_reg ) = @_;
+    my $val = 0;
 
     # アドレス 2Bytes をバイナリ形式の変数に格納
-    my $buffer = pack( "C*", $bmp085_reg );
+    my $buffer = pack( "C*", $i2c_reg );
 
     # アドレス 2Bytes 送信
     #（bufferdのprintではなく、unbufferdのsyswrite利用）
     $i2c->syswrite($buffer);
 
-    # データ 1Byte 受信
+    # データ 2Bytes 受信
     #（bufferdのreadではなく、unbufferdのsysread利用）
-    $i2c->sysread( $buffer, 2 );
+    my $read_bytes = $i2c->sysread( $buffer, 2 );
+    if ( !defined($read_bytes) || $read_bytes != 2 ) {
+        if ( $__debug == 1 ) {
+            print "error : less than 2 bytes data read from I2C device\n";
+        }
+    }
+    else{
+        my $val0 = unpack( "n", $buffer ); # ビッグエンディアンのshort unsigned intとして解釈
+        $val = unpack( "s", pack( "S", $val0 ) ); # unsigned から signed に変換
+    }
 
-    my $val0 = unpack( "n", $buffer ); # ビッグエンディアンのshort unsigned intとして解釈
-    my $val = unpack( "s", pack( "S", $val0 ) ); # unsigned から signed に変換
     if ( $__debug == 1 ) {
-        printf "(0x%02X) = 0x%02X, 0x%02X (int %d)\n", $bmp085_reg,
+        printf "(0x%02X) = 0x%02X, 0x%02X (int %d)\n", $i2c_reg,
           unpack( "C", substr( $buffer, 0, 1 ) ),
           unpack( "C", substr( $buffer, 1, 1 ) ), $val;
     }
@@ -188,20 +207,28 @@ sub i2c_read_int {
 }
 
 sub i2c_read_unsigned_int {
-    my ( $i2c, $bmp085_reg ) = @_;
+    my ( $i2c, $i2c_reg ) = @_;
+    my $val = 0;
 
     # アドレス 2Bytes をバイナリ形式の変数に格納
-    my $buffer = pack( "C*", $bmp085_reg );
+    my $buffer = pack( "C*", $i2c_reg );
 
     # アドレス 2Bytes 送信
     $i2c->syswrite($buffer);
 
-    # データ 1Byte 受信
-    $i2c->sysread( $buffer, 2 );
+    # データ 2Bytes 受信
+    my $read_bytes = $i2c->sysread( $buffer, 2 );
+    if ( !defined($read_bytes) || $read_bytes != 2 ) {
+        if ( $__debug == 1 ) {
+            print "error : less than 2 bytes data read from I2C device\n", ;
+        }
+    }
+    else{
+        $val = unpack( "n", $buffer ); # ビッグエンディアンのshort unsigned intとして解釈
+    }
 
-    my $val = unpack( "n", $buffer ); # ビッグエンディアンのshort unsigned intとして解釈
     if ( $__debug == 1 ) {
-        printf "(0x%02X) = 0x%02X, 0x%02X (uint %u)\n", $bmp085_reg,
+        printf "(0x%02X) = 0x%02X, 0x%02X (uint %u)\n", $i2c_reg,
           unpack( "C", substr( $buffer, 0, 1 ) ),
           unpack( "C", substr( $buffer, 1, 1 ) ), $val;
     }
@@ -222,24 +249,28 @@ sub i2c_write_bytes {
 }
 
 sub i2c_read_bytes {
-    my ( $i2c, $bmp085_reg, $count ) = @_;
+    my ( $i2c, $i2c_reg, $count ) = @_;
 
     # アドレス 2Bytes をバイナリ形式の変数に格納
-    my $buffer = pack( "C*", $bmp085_reg );
+    my $buffer = pack( "C*", $i2c_reg );
 
     # アドレス 2Bytes 送信
     $i2c->syswrite($buffer);
 
-    # データ 1Byte 受信
-    if ( $i2c->sysread( $buffer, 3 ) != $count ) {
-        print "(less data error) \n";
+    # データ $count Byte 受信
+    my $read_bytes = $i2c->sysread( $buffer, $count );
+    if ( !defined($read_bytes) || $read_bytes != $count ) {
+        $buffer = "";
+        if ( $__debug == 1 ) {
+            print "error : less than $count bytes data read from I2C device\n";
+        }
     }
-
     if ( $__debug == 1 ) {
-        printf( "(0x%02X) = ", $bmp085_reg );
+        printf( "(0x%02X) = ", $i2c_reg );
         for ( my $i = 0 ; $i < $count ; $i++ ) {
             printf( "0x%02X, ", unpack( "C", substr( $buffer, $i, 1 ) ) );
         }
+        print "\n";
     }
     return $buffer;
 }
