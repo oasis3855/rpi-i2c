@@ -20,6 +20,8 @@ use constant BMP280_PRES_OSS     => 0x01;  # osrs_p = 0b001  -> oversampling x 1
 use constant BMP280_POWER_NORMAL => 0x03;  # power on (normalmode)
 use constant BMP280_POWER_SLEEP  => 0x00;  # sleep
 
+# データ読み出しバイト数が規定以下（エラー）の場合にセットされるフラグ
+my $error_read_size = 0;
 # デバッグ時に1とすることで、計算途中の変数を端末に表示する
 my $__debug = 1;
 
@@ -35,6 +37,9 @@ my $__debug = 1;
 # 温度・気圧を配列で返すsub
 sub bmp280_getvalue {
     my ( $t, $p ) = ( 0, 0 );
+
+    # I2C読み込みエラーが発生した場合は1がセットされる
+    $error_read_size = 0;
 
     eval {
         my $fh = IO::File->new( "/dev/i2c-1", O_RDWR );
@@ -162,6 +167,10 @@ sub bmp280_getvalue {
         return ( 0, 0 );
     }
 
+    # 読み出しエラーの場合
+    if($error_read_size == 1) {
+        return ( 0, 0 );
+    }
     return ( $t, $p );
 
 }
@@ -181,6 +190,8 @@ sub i2c_read_int {
     #（bufferdのreadではなく、unbufferdのsysread利用）
     my $read_bytes = $i2c->sysread( $buffer, 2 );
     if ( !defined($read_bytes) || $read_bytes != 2 ) {
+        $error_read_size = 1;       # 読み出しエラーの場合
+        $buffer = pack("C*", 0, 0);# ダミー値を代入しておく
         if ( $__debug == 1 ) {
             print "error : less than 2 bytes data read from I2C device\n";
         }
@@ -212,6 +223,8 @@ sub i2c_read_unsigned_int {
     # データ 2Bytes 受信
     my $read_bytes = $i2c->sysread( $buffer, 2 );
     if ( !defined($read_bytes) || $read_bytes != 2 ) {
+        $error_read_size = 1;       # 読み出しエラーの場合
+        $buffer = pack("C*", 0, 0);# ダミー値を代入しておく
         if ( $__debug == 1 ) {
             print "error : less than 2 bytes data read from I2C device\n", ;
         }
@@ -253,7 +266,10 @@ sub i2c_read_bytes {
     # データ $count Byte 受信
     my $read_bytes = $i2c->sysread( $buffer, $count );
     if ( !defined($read_bytes) || $read_bytes != $count ) {
+        $error_read_size = 1;   # 読み出しエラーの場合
+        # バッファはダミー値で埋める
         $buffer = "";
+        for(my $i=0; $i<$count; $i++){ $buffer = $buffer . pack("C*", 0); }
         if ( $__debug == 1 ) {
             print "error : less than $count bytes data read from I2C device\n";
         }
