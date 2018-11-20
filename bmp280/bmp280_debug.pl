@@ -119,6 +119,13 @@ sub bmp280_getvalue {
         if ( $__debug == 1 ) {
             printf "adc_p = %ld (0x%06X)\n", $adc_t, $adc_t;
         }
+        # check reset state
+        if($adc_p == 0x080000 || $adc_t == 0x080000) {
+            print "error : 0x080000 is reset state\n";
+            $error_read_size = 1;
+            close($fh);
+            return ( 0, 0 );
+        }
 
         #
         # Calc temperature
