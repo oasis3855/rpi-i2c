@@ -1,4 +1,4 @@
-## Raspberry Pi用I2C汎用ライブラリ
+## Raspberry Pi用I2C汎用ライブラリ<!-- omit in toc -->
 
 [Home](https://oasis3855.github.io/webpage/) > [Software](https://oasis3855.github.io/webpage/software/index.html) > [Software Download](https://oasis3855.github.io/webpage/software/software-download.html) > ***rpi-i2c*** (this page)
 
@@ -7,7 +7,6 @@
 
 Last Updated : Nov. 2018
 
-- [Raspberry Pi用I2C汎用ライブラリ](#raspberry-pi用i2c汎用ライブラリ)
 - [ソフトウエアのダウンロード](#ソフトウエアのダウンロード)
 - [気圧・気温センサー BMP280, BME280](#気圧気温センサー-bmp280-bme280)
 - [気圧・気温センサー BMP085, BMP180](#気圧気温センサー-bmp085-bmp180)
@@ -16,15 +15,16 @@ Last Updated : Nov. 2018
 - [電流センサー INA219](#電流センサー-ina219)
 - [ビットマップLCD SSD1306](#ビットマップlcd-ssd1306)
 - [EEPROM Microchip 24LCxx](#eeprom-microchip-24lcxx)
+- [ライセンス](#ライセンス)
 
 <br />
 <br />
 
 ## ソフトウエアのダウンロード
 
-- [このGitHubリポジトリを参照する（ソースコード）](./)
+- ![download icon](readme_pics/soft-ico-download-darkmode.gif) [このGitHubリポジトリを参照する（ソースコード）](./)
 
-各センサーIC名のディレクトリよりダウンロードする
+***各センサーIC名のディレクトリよりダウンロードする***
 
 ## 気圧・気温センサー BMP280, BME280
 
@@ -90,4 +90,8 @@ BMP085とBMP180はプログラム互換
 ## EEPROM Microchip 24LCxx
 
 - 24LC32/64/128/256/512
+
+## ライセンス
+
+このプログラムは [GNU General Public License v3ライセンスで公開する](https://gpl.mhatta.org/gpl.ja.html) フリーソフトウエア
 
